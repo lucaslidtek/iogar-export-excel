@@ -11,10 +11,12 @@
       const csvUrl = params.get("csv");
       if (!csvUrl) return;
 
+      // Busca como ArrayBuffer (mais confiável que string)
       const response = await fetch(csvUrl);
-      const csvText = (await response.text()).replace(/^\uFEFF/, ""); // remove BOM
+      const arrayBuffer = await response.arrayBuffer();
 
-      const wb = XLSX.read(csvText, { type: "string" });
+      // Lê direto do buffer — SheetJS detecta BOM e encoding automaticamente
+      const wb = XLSX.read(arrayBuffer, { type: "array" });
       wb.SheetNames[0] = "Relatório";
 
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
