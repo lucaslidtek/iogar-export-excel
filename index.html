@@ -6,25 +6,45 @@
 </head>
 <body>
   <script>
+    function parseCSV(text) {
+      const lines = text.replace(/^\uFEFF/, "").split("\n");
+      return lines
+        .filter(line => line.trim() !== "")
+        .map(line => {
+          const cols = [];
+          let current = "";
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+              inQuotes = !inQuotes;
+            } else if (ch === "," && !inQuotes) {
+              cols.push(current);
+              current = "";
+            } else {
+              current += ch;
+            }
+          }
+          cols.push(current);
+          return cols;
+        });
+    }
+
     async function exportarXLSX() {
       const params = new URLSearchParams(window.location.search);
       const csvUrl = params.get("csv");
       if (!csvUrl) return;
 
       const response = await fetch(csvUrl);
-      const csvText = (await response.text()).replace(/^\uFEFF/, ""); // remove BOM
+      const csvText = await response.text();
 
-      // Força leitura como CSV explicitamente
-      const wb = XLSX.read(csvText, { type: "string", raw: true });
+      // Parse manual do CSV
+      const rows = parseCSV(csvText);
 
-      // Garante que a aba tem os dados
-      const wsName = wb.SheetNames[0];
-      const ws = wb.Sheets[wsName];
-
-      // Renomeia a aba
-      wb.SheetNames[0] = "Relatório";
-      wb.Sheets["Relatório"] = ws;
-      delete wb.Sheets[wsName];
+      // Cria planilha a partir do array de arrays
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Relatório");
 
       const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
       const blob = new Blob([wbout], {
