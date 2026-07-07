@@ -3,8 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+      color: #444;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
+  <div id="msg">Gerando arquivo...</div>
   <script>
     function parseCSV(text) {
       const lines = text.replace(/^\uFEFF/, "").split("\n");
@@ -33,32 +47,49 @@
     async function exportarXLSX() {
       const params = new URLSearchParams(window.location.search);
       const csvUrl = params.get("csv");
-      if (!csvUrl) return;
+      const msg = document.getElementById("msg");
 
-      const response = await fetch(csvUrl);
-      const csvText = await response.text();
+      if (!csvUrl) {
+        msg.textContent = "Nenhum link de CSV informado.";
+        return;
+      }
 
-      // Parse manual do CSV
-      const rows = parseCSV(csvText);
+      try {
+        const response = await fetch(csvUrl);
+        const csvText = await response.text();
 
-      // Cria planilha a partir do array de arrays
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Relatório");
+        const rows = parseCSV(csvText);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Relatório");
+        const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+        const blob = new Blob([wbout], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "Relatorio_" + new Date().toLocaleDateString("pt-BR").replace(/\//g, "-") + ".xlsx";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
 
-      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      const blob = new Blob([wbout], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      });
+        msg.textContent = "Arquivo baixado! Fechando...";
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "Relatorio_" + new Date().toLocaleDateString("pt-BR").replace(/\//g, "-") + ".xlsx";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        // Pequeno delay pra garantir que o download disparou antes de fechar
+        setTimeout(() => {
+          window.close();
+          // Se o navegador bloquear o fechamento (aba não aberta via script),
+          // mostra uma mensagem em vez de ficar em branco
+          setTimeout(() => {
+            msg.textContent = "Arquivo baixado com sucesso! Você já pode fechar esta aba.";
+          }, 500);
+        }, 800);
+
+      } catch (err) {
+        msg.textContent = "Erro ao gerar o arquivo: " + err.message;
+      }
     }
 
     window.addEventListener("load", exportarXLSX);
